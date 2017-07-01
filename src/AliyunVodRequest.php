@@ -65,12 +65,6 @@ class AliyunVodRequest {
      * @return string
      */
     public function serialize() {
-        $queryString = '';
-
-        foreach($this->parameters as $key => $value) {
-            $queryString .= urlencode($key) . '=' . urlencode($value) . '&';
-        }
-
-        return rtrim($queryString, '&');
+        return http_build_query($this->parameters);
     }
 }

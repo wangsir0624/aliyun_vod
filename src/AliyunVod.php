@@ -97,14 +97,17 @@ class AliyunVod {
      * @param array $tags  the video tags
      * @return array
      */
-    public function createUploadVideo($title, $filename, $filesize, $description, $coverUrl = null, $cateId = null, $tags = null) {
+    public function createUploadVideo($title, $filename, $filesize, $description = null, $coverUrl = null, $cateId = null, $tags = null) {
         $request = $this->createRequest([
             'Action' => 'CreateUploadVideo',
             'Title' => $title,
             'FileName' => $filename,
-            'FileSize' => $filesize,
-            'Description' => $description
+            'FileSize' => $filesize
         ]);
+
+        if(!is_null($description)) {
+            $request->Description = $description;
+        }
 
         if(!is_null($coverUrl)) {
             $request->CoverURL = $coverUrl;
@@ -271,9 +274,12 @@ class AliyunVod {
      * @param string $sortBy
      * @return array
      */
-    public function getVideoList($status = null, $cateId = null, $pageNo = null, $pageSize = null, $sortBy = null) {
+    public function getVideoList($status = null, $cateId = null, $pageNo = 1, $pageSize = 10, $sortBy = self::SORTBY_CREATIONTIME_DESC) {
         $request = $this->createRequest([
-           'Action' => 'GetVideoList'
+           'Action' => 'GetVideoList',
+            'PageNo' => $pageNo,
+            'PageSize' => $pageSize,
+            'SortBy' => $sortBy
         ]);
 
         if(!is_null($status)) {
@@ -284,16 +290,25 @@ class AliyunVod {
             $request->CateId = $cateId;
         }
 
-        if(!is_null($pageNo)) {
-            $request->PageNo = $pageNo;
-        }
+        $result = $this->sendRequest($request);
+        $result = json_decode($result, true);
 
-        if(!is_null($pageSize)) {
-            $request->PageSize = $pageSize;
+        if(isset($result['Code'])) {
+            return ['errCode' => $result['Code'], 'errMsg' => $result['Message']];
+        } else {
+            return $result['VideoList']['Video'];
         }
+    }
 
-        if(!is_null($sortBy)) {
-            $request->SortBy = $this->sortBy[$sortBy];
+    public function getVideoPlayInfo($videoId, $formats = null, $authTimeout = 1800) {
+        $request = $this->createRequest([
+           'Action' => 'GetPlayInfo',
+            'VideoId' => $videoId,
+            'AuthTimeout' => 1800
+        ]);
+
+        if(!is_null($formats)) {
+            $request->Formats = implode(',', $formats);
         }
 
         $result = $this->sendRequest($request);
@@ -302,7 +317,7 @@ class AliyunVod {
         if(isset($result['Code'])) {
             return ['errCode' => $result['Code'], 'errMsg' => $result['Message']];
         } else {
-            return $result['VideoList']['Video'];
+            return $result;
         }
     }
 
@@ -369,10 +384,7 @@ class AliyunVod {
         ksort($parameters);
 
         //urlencode the parameter key and parameter value
-        foreach($parameters as $key => $value) {
-            $signature .= urlencode($key).'='.urlencode($value).'&';
-        }
-        $signature = rtrim($signature, '&');
+        $signature = http_build_query($parameters);
 
         //generate the canonicalized query string
         $signature = $request->method() . '&' . urlencode('/') . '&' . urlencode($signature);
@@ -423,13 +435,13 @@ class AliyunVod {
      * @return string
      */
     protected function getNonce() {
-        //获取当前时间戳，毫秒为单位
+        //get the current timestamp
         $microtime = microtime(true);
 
-        //获取客户端IP
+        //get the client ip
         $ip = isset($_SERVER['HTTP_X_FORWARDED_FOR']) ? $_SERVER['HTTP_X_FORWARDED_FOR'] : (isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : '');
 
-        //获取一个32位的随机数
+        //get a random string
         $len = 32;
         $tokens =  [
             '0','1','2','3','4','5','6','7','8','9',
